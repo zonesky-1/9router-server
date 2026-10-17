@@ -2,14 +2,23 @@
 .env
 .env.*
 !.env.example
+*.token
+farmaoalah_token.txt
+
+# Databases & Backups (Never commit heavy/live production sqlite DBs)
+*.sqlite
+*.sqlite3
+*.db
+*.tar.gz
+data.sqlite
+backup-temp.sqlite
+9router-backup.zip
 
 # runtime artefacts
 supervisor.log
 9router.log
 tunnel.log
 tunnel-state.json
-backup-temp.sqlite
-9router-backup.zip
 cloudflared
 cloudflared.exe
 __pycache__/

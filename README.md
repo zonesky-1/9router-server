@@ -1,95 +1,94 @@
-# 9Router 24/7 — Self-Hosted Server
+# ⚡ 9Router 24/7 — Production Enterprise Server & Source Engine
 
-Run [9Router](https://www.npmjs.com/package/9router) 24/7 on **your own server**
-(VPS / home server / Docker), with automatic restart, an optional public tunnel,
-and periodic database backup.
+Self-hosted deployment suite dan patch engine lengkap untuk **[9Router](https://9router.com)**:
+- **Server Deployment**: Docker Compose, Native Systemd, dan Automated Process Supervisor.
+- **Patched Source Engine**: Source code `patched-src/` teroptimasi untuk high-throughput AI API routing, tool calling rescue, multi-provider OAuth, dan bypass model limits.
+- **Zero-Refusal Guardrail Patch**: Bypass limitasi filter Gemini / LLM internal (`BLOCK_NONE` mode).
+- **Credentials Injector**: Sinkronisasi massal token & API keys (Grok CLI, TokenHarbor, Cloudflare AI, Ollama, dll.) langsung ke SQLite DB.
+- **Auto-Healing & Backup**: Snapshot online-consistent SQLite database dan Cloudflare tunnel watchdog.
 
-This repository is the **Linux/server** port. It contains no secrets and no
-Windows binaries — everything is configured through environment variables.
+---
 
-## What it does
-- **Keeps 9Router alive** — polls `/api/health`, restarts the process if it dies.
-- **Public access (optional)** — pulls `cloudflared` automatically and opens a
-  quick tunnel, writing the current URL to `tunnel-state.json`.
-- **Status panel (optional)** — publishes `status.json` to a Hugging Face Space.
-- **Backup (optional)** — snapshots the SQLite DB every 5 minutes to a private
-  Hugging Face dataset (online-consistent copy via `sqlite3.backup`, not a raw
-  file copy of a live DB).
+## 📂 Struktur Repositori
 
-Every integration is optional: with no `HF_TOKEN` the app and tunnel still run.
+```text
+├── Dockerfile              # Container Node 22 + Python3 + TTY script fix
+├── docker-compose.yml      # Service docker 9Router 24/7
+├── 9router.service         # Systemd unit daemon untuk Linux VPS
+├── supervisor.py           # Watchdog supervisor, health monitor & CF tunnel
+├── patch_safety.py         # Zero-Refusal safety filter patcher (Gemini BLOCK_NONE)
+├── inject_credentials.py   # Token/Key batch injector ke SQLite data.sqlite
+├── backup.sh               # Local database backup engine
+├── patched-src/            # 🛠️ Patched internal sources (Open-SSE, Translators, OAuth)
+│   ├── src/                # Core stores, services, handlers & models
+│   ├── open-sse/           # Provider registry, transformers, stream converters
+│   └── ...
+├── BUILD_ID.txt            # Target build identifier (serenhope engine)
+├── .env.example            # Template variabel lingkungan aman
+└── README.md
+```
 
-## Quick start — Docker (recommended)
+---
+
+## 🚀 Panduan Menjalankan
+
+### Opsi 1: Docker Compose (Disarankan)
 
 ```bash
-git clone https://github.com/rapeskul-cyber/9router-server.git
+git clone https://github.com/zonesky-1/9router-server.git
 cd 9router-server
 
 cp .env.example .env
-nano .env                 # put your HF_TOKEN here (or leave empty)
+# Sesuaikan port atau token jika diperlukan
 
 docker compose up -d --build
 docker compose logs -f
 ```
 
-9Router is then on `http://<server-ip>:20128`.
+Akses dashboard di: `http://<ip-server>:20128`
 
-Data survives container rebuilds in the `9router-data` volume (`/data`).
+---
 
-## Quick start — systemd (no Docker)
+### Opsi 2: Standalone Linux VPS (Systemd)
 
+1. Pasang dependensi:
+   ```bash
+   sudo apt update && sudo apt install -y python3 nodejs npm
+   sudo npm install -g 9router
+   ```
+
+2. Jalankan Safety Patcher (Zero-Refusal):
+   ```bash
+   python3 patch_safety.py
+   ```
+
+3. Pasang Systemd Service:
+   ```bash
+   sudo cp supervisor.py /opt/9router-server/
+   sudo cp 9router.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now 9router
+   ```
+
+---
+
+## 🔑 Injeksi Kredensial Otomatis
+
+Untuk memasukkan ratusan/ribuan akun dari harvest/farming ke database 9Router:
 ```bash
-sudo apt update && sudo apt install -y python3 nodejs npm
-sudo npm install -g 9router
-
-sudo mkdir -p /opt/9router-server
-sudo cp supervisor.py /opt/9router-server/
-sudo chown -R ubuntu:ubuntu /opt/9router-server
-
-# secrets live outside the unit file
-sudo install -m 600 /dev/null /etc/9router.env
-echo 'HF_TOKEN=' | sudo tee /etc/9router.env
-
-sudo cp 9router.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now 9router
-journalctl -u 9router -f
+python3 inject_credentials.py grok_credentials.json
 ```
+Mendukung auto-detect database baik di Docker (`/data/db/data.sqlite`), sistem Linux (`~/.config/9router/`), maupun custom path via `ROUTER_DATA`.
 
-## Configuration
+---
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `20128` | Port 9Router listens on |
-| `ROUTER_DATA` | `~/.9router` | 9Router data directory (contains `db/data.sqlite`) |
-| `ENABLE_TUNNEL` | `1` | `1` = start a cloudflared quick tunnel, `0` = LAN only |
-| `HF_TOKEN` | *(empty)* | Enables the status panel + backups. Leave empty to disable both |
-| `PANEL_REPO` | `sekenhwu/9router-static` | HF Space receiving `status.json` |
-| `BACKUP_REPO` | `sekenhwu/9router-backup` | HF dataset receiving `backup.zip` |
-| `BACKUP_BRANCH` | `backup` | Branch of the backup dataset |
+## 🛡️ Zero-Refusal Patching
 
-## Files
-| File | Purpose |
-|---|---|
-| `supervisor.py` | The supervisor: health loop, tunnel, panel publish, backup |
-| `Dockerfile` | Node 22 + Python 3 image, healthcheck built in |
-| `docker-compose.yml` | One-command deploy with a persistent volume |
-| `9router.service` | systemd unit alternative |
-| `.env.example` | Documented template (copy to `.env`, never commit `.env`) |
+Modul `patch_safety.py` secara otomatis mencari chunk instalasi 9Router dan mematikan guardrail konten berbahaya:
+* Mengganti `threshold: "OFF"` menjadi `threshold: "BLOCK_NONE"`.
+* Mengaktifkan client pass-through untuk `body.safetySettings`.
 
-## Security notes
-- **No credentials in this repo.** The token is read from `HF_TOKEN` at runtime;
-  `.env` is git-ignored, and container/systemd setups keep it outside the code.
-- The cloudflared **quick tunnel URL is public and unauthenticated** — anyone
-  with the link reaches your 9Router. Set a dashboard password in 9Router and
-  prefer `ENABLE_TUNNEL=0` behind a VPN/reverse proxy with auth for real use.
-- Backups go to a **private** HF dataset — verify the dataset is private before
-  trusting it with `data.sqlite`.
-- Deploying on a VPS: restrict `PORT` with a firewall
-  (`ufw allow 22,20128/tcp`) and do not expose the dashboard to the world.
+---
 
-## Verify it is running
-```bash
-curl -fsS http://127.0.0.1:20128/api/health && echo " OK"
-cat tunnel-state.json          # current public URL, when tunnel is enabled
-tail -f supervisor.log         # what the supervisor is doing
-```
+## 🔒 Catatan Keamanan
+* File sensitif (`.env`, `data.sqlite`, log runtime, dan file backup `.tar.gz`) telah diproteksi di `.gitignore` agar tidak pernah ter-commit ke public/private repository.
